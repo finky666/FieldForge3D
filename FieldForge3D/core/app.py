@@ -153,8 +153,7 @@ class FieldWorkbenchApp(QtCore.QObject):
         self.plotter.add_key_event("s", self.screenshot)
         self.plotter.add_key_event("r", self.reset_view)
 
-        # init plugins into UI
-        self._populate_plugins(initial=True)
+    
 
         # apply view options
         self._apply_view_options()
@@ -201,7 +200,19 @@ class FieldWorkbenchApp(QtCore.QObject):
     # Plugin handling
     # =========================
     def _populate_plugins(self, initial: bool = False):
-        items = [(p.id, p.name) for p in self.pm.list()]
+        items = []
+        for p in self.pm.list():
+            try:
+                meta = getattr(p.module, "PLUGIN_META", {}) or {}
+            except Exception:
+                meta = {}
+
+            if bool(meta.get("hidden", False)):
+                continue
+
+            items.append((p.id, p.name))
+
+            
 
         if not items:
             self.set_status("No plugins found in plugins/.", 0, "err", sticky=True)
@@ -612,15 +623,74 @@ class FieldWorkbenchApp(QtCore.QObject):
         menu_help.addAction(actAbout)
 
     def _show_about(self):
-        txt = (
+        dlg = QtWidgets.QDialog(self.win)
+        dlg.setWindowTitle("About")
+        dlg.setModal(True)
+        dlg.setMinimumWidth(420)
+
+        lay = QtWidgets.QVBoxLayout(dlg)
+
+        txt = QtWidgets.QLabel(
             "<b>FieldForge3D</b><br>"
             "Version: 0.9.0<br>"
             "Author: Majka + Tibor<br><br>"
             "PyQt6 + NumPy + Numba + PyVista/VTK<br>"
-            "Plugins: ./plugins<br>"
+            "Plugins: ./plugins<br>",
+            dlg
         )
-        QtWidgets.QMessageBox.about(self.win, "About", txt)
+        txt.setTextFormat(QtCore.Qt.TextFormat.RichText)
+        txt.setWordWrap(True)
+        lay.addWidget(txt)
 
+        # nenápadný Easter egg odkaz
+        secret = QtWidgets.QLabel(
+            '<a href="egg" style="color:#666666; text-decoration:none;">.</a>',
+            dlg
+        )
+        secret.setTextFormat(QtCore.Qt.TextFormat.RichText)
+        secret.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextBrowserInteraction)
+        secret.setOpenExternalLinks(False)
+        secret.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
+        secret.setToolTip("...")
+        lay.addWidget(secret)
+
+        btns = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok, parent=dlg)
+        btns.accepted.connect(dlg.accept)
+        lay.addWidget(btns)
+
+        def _on_secret(link: str):
+            dlg.accept()
+            self._activate_easter_egg()
+
+        secret.linkActivated.connect(_on_secret)
+
+        dlg.exec()
+        
+    def _activate_easter_egg(self):
+        pid = "dancing_eggs"
+        info = self.pm.get(pid)
+        if info is None:
+            self.set_status("Easter egg plugin not found.", 4000, "warn")
+            return
+
+        try:
+            cmb = self.panel.cmbPlugin
+            idx = cmb.findData(pid)
+
+            # hidden plugin is not in the combo -> add it only when explicitly activated
+            if idx < 0:
+                cmb.addItem(info.name, pid)
+                idx = cmb.findData(pid)
+
+            if idx >= 0:
+                cmb.setCurrentIndex(idx)
+                self.set_status("Easter egg activated.", 3000, "info")
+                self.recompute()
+            else:
+                self.set_status("Could not activate Easter egg.", 4000, "err")
+        except Exception as e:
+            self.set_status(f"Easter egg error: {e!r}", 5000, "err")
+            
     # =========================
     # Status helpers
     # =========================
