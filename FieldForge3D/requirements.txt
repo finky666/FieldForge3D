@@ -1,0 +1,6 @@
+PyQt6>=6.6
+numpy>=1.26
+numba>=0.59
+pyvista>=0.43
+pyvistaqt>=0.11
+psutil>=5.9
