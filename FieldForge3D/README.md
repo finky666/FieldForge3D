@@ -1,6 +1,7 @@
 # FieldForge3D
+A lightweight 3D field exploration tool with a modular plugin system.
 <p align="center">
-  <img src="python_pWgEGTlGHq.png" width="600"/>
+  <img src="screenshot_gyroid.png" width="600"/>
 </p>
 A small, self-contained desktop playground for generating **3D scalar fields** (fractal / implicit / procedural / ODE-density) and extracting an **iso-surface** for interactive viewing.
 
