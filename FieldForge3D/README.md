@@ -23,8 +23,20 @@ It uses a plugin system: each field is a plugin with its own parameters and a sh
 ### 1) Install
 
 ```bash
-python -m venv .venv
+# Linux / Ubuntu
+
+python3 -m venv .venv
 source .venv/bin/activate
+pip install -r requirements.txt
+
+# If Qt fails under Wayland / xcb issues:
+sudo apt install libxcb-cursor0 libxcb-xinerama0 libxkbcommon-x11-0 -y
+export QT_QPA_PLATFORM=xcb
+
+On newer Ubuntu versions, system pip is externally managed (PEP 668),
+so a virtual environment is required.
+Tested on Ubuntu 24.04 with Python 3.12.
+
 # Windows:
 .\.venv\Scripts\activate
 pip install -r requirements.txt
