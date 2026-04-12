@@ -3,7 +3,7 @@
 **Interactive 3D implicit field visualizer (Python + PyVista + PyQt)**
 <p align="center">
   <img src="screenshot_gyroid.png" width="600"/>
-  <img src="fieldforge_plugins.gif" width-"600"/>
+  <img src="fieldforge_plugins.gif" width-"450"/>
 </p>
 FieldForge3D lets you explore mathematical 3D scalar fields and generate smooth implicit surfaces in real time.
 Small parameter changes produce rich geometric structures – ideal for experimentation, visualization, and even 3D printing.
