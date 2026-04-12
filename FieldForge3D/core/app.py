@@ -24,8 +24,10 @@ from core.memory_guard import guard as mem_guard, suggest_lower_N
 from core.formulas_registry import FORMULAS
 from core.safety_registry import GLOBAL_LIMITS, PLUGIN_LIMITS, clamp_params
 from core.presets import get_plugin_preset, set_plugin_preset, clear_plugin_preset
+from core.export_pipeline import export_all_pack, export_stl
 
 
+APP_VERSION = "1.1.0"
 
 DEFAULT_STATE = dict(
     DARK_BG=True,
@@ -153,8 +155,6 @@ class FieldWorkbenchApp(QtCore.QObject):
         self.plotter.add_key_event("s", self.screenshot)
         self.plotter.add_key_event("r", self.reset_view)
 
-    
-
         # apply view options
         self._apply_view_options()
 
@@ -212,8 +212,6 @@ class FieldWorkbenchApp(QtCore.QObject):
 
             items.append((p.id, p.name))
 
-            
-
         if not items:
             self.set_status("No plugins found in plugins/.", 0, "err", sticky=True)
             try:
@@ -222,8 +220,7 @@ class FieldWorkbenchApp(QtCore.QObject):
                 pass
             return
 
-        # Prefer a nice/light default plugin for first launch
-        prefer = ["gyroid", "torus", "metaballs", "mandelbulb", "mandelbulb_de", "fibo_nested_cubes"]
+        prefer = ["gyroid", "wave_lattice", "organic_blob", "torus", "superquadric", "metaballs"]
         ids = [pid for pid, _ in items]
         select_id = items[0][0]
         for p in prefer:
@@ -234,10 +231,8 @@ class FieldWorkbenchApp(QtCore.QObject):
         try:
             self.panel.set_plugins(items, select_id=select_id)
         except Exception:
-            # Fallback: if panel API changed, just ignore
             pass
 
-        # Build the active plugin UI
         try:
             self._load_active_plugin_ui()
         except Exception:
@@ -485,14 +480,40 @@ class FieldWorkbenchApp(QtCore.QObject):
     # =========================
     def _build_menu(self):
         mb = self.win.menuBar()
+        mb.clear()
 
+        menu_file = mb.addMenu("File")
         menu_render = mb.addMenu("Render")
         menu_color = mb.addMenu("Color")
         menu_view = mb.addMenu("View")
         menu_workbench = mb.addMenu("Workbench")
         menu_help = mb.addMenu("Help")
 
-        # --- Render toggles ---
+        actShotUi = QtGui.QAction("Export UI screenshot…", self.win)
+        actShotUi.triggered.connect(self.export_ui_screenshot)
+
+        actShotClean = QtGui.QAction("Export clean render…", self.win)
+        actShotClean.setShortcut("S")
+        actShotClean.triggered.connect(self.screenshot)
+
+        actStl = QtGui.QAction("Export current STL…", self.win)
+        actStl.triggered.connect(self.export_current_stl)
+
+        actPack = QtGui.QAction("Export all pack…", self.win)
+        actPack.triggered.connect(self.export_all_pack_dialog)
+
+        actQuit = QtGui.QAction("Quit", self.win)
+        actQuit.setShortcut("Ctrl+Q")
+        actQuit.triggered.connect(self.win.close)
+
+        menu_file.addAction(actShotUi)
+        menu_file.addAction(actShotClean)
+        menu_file.addAction(actStl)
+        menu_file.addSeparator()
+        menu_file.addAction(actPack)
+        menu_file.addSeparator()
+        menu_file.addAction(actQuit)
+
         self.actSmooth = QtGui.QAction("Smooth shading", self.win, checkable=True)
         self.actSmooth.setChecked(bool(self.state["SMOOTH_SHADING"]))
         self.actSmooth.triggered.connect(self._toggle_smooth)
@@ -504,10 +525,8 @@ class FieldWorkbenchApp(QtCore.QObject):
         menu_render.addAction(self.actSmooth)
         menu_render.addAction(self.actAA)
 
-        # --- Color mode radio ---
         self.grpColorMode = QtGui.QActionGroup(self.win)
         self.grpColorMode.setExclusive(True)
-
         menu_color.addSection("Color by")
 
         def add_mode(title: str, key: str):
@@ -524,21 +543,16 @@ class FieldWorkbenchApp(QtCore.QObject):
         self.grpColorMode.triggered.connect(self._set_color_mode)
 
         menu_color.addSeparator()
-
         self.actScalarBar = QtGui.QAction("Show scalar bar", self.win, checkable=True)
         self.actScalarBar.setChecked(bool(self.state["SHOW_SCALAR_BAR"]))
         self.actScalarBar.triggered.connect(self._toggle_scalar_bar)
         menu_color.addAction(self.actScalarBar)
-
         menu_color.addSeparator()
 
-        # --- Colormap submenu ---
         cmap_menu = menu_color.addMenu("Colormap")
         cmaps = ["turbo", "viridis", "plasma", "inferno", "magma", "cividis", "hsv", "gist_rainbow"]
-
         self.grpCmap = QtGui.QActionGroup(self.win)
         self.grpCmap.setExclusive(True)
-
         current = self.state["COLORMAP_DARK"] if self.dark_bg else self.state["COLORMAP_LIGHT"]
         for name in cmaps:
             act = QtGui.QAction(name, self.win, checkable=True)
@@ -547,10 +561,8 @@ class FieldWorkbenchApp(QtCore.QObject):
             if name == current:
                 act.setChecked(True)
             cmap_menu.addAction(act)
-
         self.grpCmap.triggered.connect(self._set_colormap)
 
-        # --- View menu ---
         self.actAxes = QtGui.QAction("Axes", self.win, checkable=True)
         self.actAxes.setChecked(bool(self.state["SHOW_AXES"]))
         self.actAxes.triggered.connect(self.toggle_axes)
@@ -593,7 +605,6 @@ class FieldWorkbenchApp(QtCore.QObject):
         self.actCycle.triggered.connect(lambda checked: self.toggle_cycle_plugins(checked))
         menu_view.addAction(self.actCycle)
 
-        # --- Workbench menu ---
         actRecompute = QtGui.QAction("Recompute", self.win)
         actRecompute.setShortcut("Ctrl+Enter")
         actRecompute.triggered.connect(self.recompute)
@@ -602,10 +613,6 @@ class FieldWorkbenchApp(QtCore.QObject):
         actReset.setShortcut("R")
         actReset.triggered.connect(self.reset_view)
 
-        actShot = QtGui.QAction("Screenshot", self.win)
-        actShot.setShortcut("S")
-        actShot.triggered.connect(self.screenshot)
-
         actReload = QtGui.QAction("Reload plugins", self.win)
         actReload.setShortcut("Ctrl+R")
         actReload.triggered.connect(self.reload_plugins)
@@ -613,84 +620,68 @@ class FieldWorkbenchApp(QtCore.QObject):
         menu_workbench.addAction(actRecompute)
         menu_workbench.addSeparator()
         menu_workbench.addAction(actReset)
-        menu_workbench.addAction(actShot)
-        menu_workbench.addSeparator()
         menu_workbench.addAction(actReload)
 
-        # --- Help menu ---
         actAbout = QtGui.QAction("About…", self.win)
         actAbout.triggered.connect(self._show_about)
         menu_help.addAction(actAbout)
 
     def _show_about(self):
         dlg = QtWidgets.QDialog(self.win)
-        dlg.setWindowTitle("About")
+        dlg.setWindowTitle("About FieldForge3D")
         dlg.setModal(True)
-        dlg.setMinimumWidth(420)
+        dlg.setMinimumWidth(460)
 
         lay = QtWidgets.QVBoxLayout(dlg)
-
         txt = QtWidgets.QLabel(
-            "<b>FieldForge3D</b><br>"
-            "Version: 0.9.0<br>"
-            "Author: Majka + Tibor<br><br>"
-            "PyQt6 + NumPy + Numba + PyVista/VTK<br>"
-            "Plugins: ./plugins<br>",
-            dlg
+            f"<b>FieldForge3D</b><br>"
+            f"Version: {APP_VERSION}<br>"
+            "Author: Tibor Čefan (finky666)<br>"
+            "Refactor & export pipeline: ChatGPT (Majka / SuPyWomen)<br><br>"
+            "Interactive 3D implicit-field playground with export workflow for showcase, screensaver and 3D print.<br>"
+            "Version 1.1 adds UI cleanup and a new hidden bloom plugin.<br><br>"
+            "PyQt6 + NumPy + Numba + PyVista/VTK"
         )
         txt.setTextFormat(QtCore.Qt.TextFormat.RichText)
         txt.setWordWrap(True)
         lay.addWidget(txt)
 
-        # nenápadný Easter egg odkaz
-        secret = QtWidgets.QLabel(
-            '<a href="egg" style="color:#666666; text-decoration:none;">.</a>',
-            dlg
-        )
+        secret = QtWidgets.QLabel('<a href="egg" style="color:#666666; text-decoration:none;">.</a>', dlg)
         secret.setTextFormat(QtCore.Qt.TextFormat.RichText)
         secret.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextBrowserInteraction)
         secret.setOpenExternalLinks(False)
         secret.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
-        secret.setToolTip("...")
+        secret.setToolTip("Easter egg")
         lay.addWidget(secret)
 
         btns = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok, parent=dlg)
         btns.accepted.connect(dlg.accept)
         lay.addWidget(btns)
 
-        def _on_secret(link: str):
+        def _on_secret(_link: str):
             dlg.accept()
-            self._activate_easter_egg()
+            self._activate_hidden_plugin("event_horizon_bloom")
 
         secret.linkActivated.connect(_on_secret)
-
         dlg.exec()
-        
-    def _activate_easter_egg(self):
-        pid = "dancing_eggs"
-        info = self.pm.get(pid)
+
+    def _activate_hidden_plugin(self, plugin_id: str):
+        info = self.pm.get(plugin_id)
         if info is None:
-            self.set_status("Easter egg plugin not found.", 4000, "warn")
+            self.set_status("Hidden plugin not found.", 4000, "warn")
             return
 
-        try:
-            cmb = self.panel.cmbPlugin
-            idx = cmb.findData(pid)
+        cmb = self.panel.cmbPlugin
+        idx = cmb.findData(plugin_id)
+        if idx < 0:
+            cmb.addItem(info.name, plugin_id)
+            idx = cmb.findData(plugin_id)
+        if idx >= 0:
+            cmb.setCurrentIndex(idx)
+            self.set_status(f"Hidden plugin unlocked: {info.name}", 3000, "info")
 
-            # hidden plugin is not in the combo -> add it only when explicitly activated
-            if idx < 0:
-                cmb.addItem(info.name, pid)
-                idx = cmb.findData(pid)
-
-            if idx >= 0:
-                cmb.setCurrentIndex(idx)
-                self.set_status("Easter egg activated.", 3000, "info")
-                self.recompute()
-            else:
-                self.set_status("Could not activate Easter egg.", 4000, "err")
-        except Exception as e:
-            self.set_status(f"Easter egg error: {e!r}", 5000, "err")
-            
+    # =========================
+    # Status helpers
     # =========================
     # Status helpers
     # =========================
@@ -840,7 +831,53 @@ class FieldWorkbenchApp(QtCore.QObject):
         fname = time.strftime("field_%Y%m%d_%H%M%S.png")
         self.plotter.screenshot(fname)
         print(f"[INFO] Screenshot: {os.path.abspath(fname)}")
-        self.set_status(f"Screenshot saved: {fname}", 6000, "info")
+        self.set_status(f"Clean render saved: {fname}", 6000, "info")
+
+    def export_ui_screenshot(self):
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self.win, "Export UI screenshot", "fieldforge_ui.png", "PNG Image (*.png)"
+        )
+        if not path:
+            return
+        self.win.grab().save(path)
+        self.set_status(f"UI screenshot saved: {Path(path).name}", 6000, "info")
+
+    def export_current_stl(self):
+        if self._last_surf is None or self._last_surf.n_points == 0:
+            self.set_status("No current mesh to export.", 4000, "warn")
+            return
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self.win, "Export current STL", "fieldforge_current.stl", "STL Mesh (*.stl)"
+        )
+        if not path:
+            return
+        export_stl(self._last_surf, path, max_size_mm=100.0)
+        self.set_status(f"STL exported: {Path(path).name}", 6000, "info")
+
+    def export_all_pack_dialog(self):
+        base = QtWidgets.QFileDialog.getExistingDirectory(self.win, "Export FieldForge3D pack")
+        if not base:
+            return
+        out_dir = Path(base) / f"fieldforge_export_{time.strftime('%Y%m%d_%H%M%S')}"
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        current_ui = out_dir / "current_ui.png"
+        current_clean = out_dir / "current_clean.png"
+        self.win.grab().save(str(current_ui))
+        if self._last_surf is not None and self._last_surf.n_points > 0:
+            self.plotter.screenshot(str(current_clean))
+
+        state = {
+            "DARK_BG": self.dark_bg,
+            "SMOOTH_SHADING": self.state["SMOOTH_SHADING"],
+            "COLOR_MODE": self.state["COLOR_MODE"],
+            "COLORMAP_DARK": self.state["COLORMAP_DARK"],
+            "COLORMAP_LIGHT": self.state["COLORMAP_LIGHT"],
+            "SHOW_SCALAR_BAR": self.state["SHOW_SCALAR_BAR"],
+        }
+        manifest = export_all_pack(self.plugins_dir, out_dir, state=state)
+        count_ok = sum(1 for rec in manifest["records"] if not rec.get("skipped"))
+        self.set_status(f"Export pack ready: {count_ok} items -> {out_dir.name}", 8000, "info")
 
     # =========================
     # Recompute pipeline
@@ -1148,7 +1185,7 @@ class FieldWorkbenchApp(QtCore.QObject):
         finally:
             self.panel.set_busy(False)
             if not getattr(self, "_status_lock", False):
-                self.set_status("Hotovo.", 1500, "info", sticky=False)
+                self.set_status("Done.", 1500, "info", sticky=False)
             self._thread = None
             self._worker = None
             try:

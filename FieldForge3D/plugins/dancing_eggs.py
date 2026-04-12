@@ -2,22 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import numpy as np
-from PyQt6.QtWidgets import (
-    QWidget,
-    QFormLayout,
-    QDoubleSpinBox,
-    QSpinBox,
-    QVBoxLayout,
-)
-
+from PyQt6.QtWidgets import QWidget, QFormLayout, QDoubleSpinBox, QVBoxLayout
 
 PLUGIN_META = {
     "id": "dancing_eggs",
     "name": "Dancing Eggs",
-    "category": "Easter / Hidden",
-    "hidden": True,
+    "category": "Fun / Showcase",
+    "hidden": False,
+    "printable": True,
 }
-
 
 FORMULA = r"""Dancing Eggs (implicit shell field)
 Plugin: dancing_eggs  (dancing_eggs.py)
@@ -38,27 +31,20 @@ Formula:
     s_i = exp( -gain * |E_i| / thick )
 - Final field is the union of both shells:
     F = max(s_1, s_2)
-
-Notes:
-- SEPARATION controls the spacing between both eggs
-- TILT controls how much they lean toward each other
-- TWIST adds a gentle opposite spin around Z
-- PHASE shifts the pose, useful for alternate "dance" positions
-- THICK controls shell softness
 """
 
 
 @dataclass
 class _Params:
-    SEPARATION: float = 0.95
-    TILT: float = 22.0
-    TWIST: float = 18.0
+    SEPARATION: float = 1.20
+    TILT: float = 12.0
+    TWIST: float = 8.0
     PHASE: float = 0.0
-    EGGNESS: float = 0.28
-    SLIMNESS: float = 0.78
-    THICK: float = 0.11
-    GAIN: float = 4.0
-    BOB: float = 0.18
+    EGGNESS: float = 0.20
+    SLIMNESS: float = 0.90
+    THICK: float = 0.085
+    GAIN: float = 3.0
+    BOB: float = 0.06
 
 
 class _UI(QWidget):
@@ -114,9 +100,9 @@ def _dspin(vmin: float, vmax: float, step: float, value: float) -> QDoubleSpinBo
 
 def get_defaults() -> dict:
     return {
-        "N": 170,
-        "BOUNDS": 2.0,
-        "ISO": 0.55,
+        "N": 180,
+        "BOUNDS": 1.6,
+        "ISO": 0.58,
         "SEPARATION": 1.20,
         "TILT": 12.0,
         "TWIST": 8.0,
@@ -138,15 +124,15 @@ def compute(params: dict) -> np.ndarray:
     n = int(params.get("N", 180))
     bounds = float(params.get("BOUNDS", 1.6))
 
-    separation = float(params.get("SEPARATION", 0.95))
-    tilt_deg = float(params.get("TILT", 22.0))
-    twist_deg = float(params.get("TWIST", 18.0))
+    separation = float(params.get("SEPARATION", 1.20))
+    tilt_deg = float(params.get("TILT", 12.0))
+    twist_deg = float(params.get("TWIST", 8.0))
     phase_deg = float(params.get("PHASE", 0.0))
-    eggness = float(params.get("EGGNESS", 0.28))
-    slimness = float(params.get("SLIMNESS", 0.78))
-    thick = max(1e-4, float(params.get("THICK", 0.11)))
-    gain = max(1e-4, float(params.get("GAIN", 4.0)))
-    bob = float(params.get("BOB", 0.18))
+    eggness = float(params.get("EGGNESS", 0.20))
+    slimness = float(params.get("SLIMNESS", 0.90))
+    thick = max(1e-4, float(params.get("THICK", 0.085)))
+    gain = max(1e-4, float(params.get("GAIN", 3.0)))
+    bob = float(params.get("BOB", 0.06))
 
     xs = np.linspace(-bounds, bounds, n, dtype=np.float32)
     ys = np.linspace(-bounds, bounds, n, dtype=np.float32)
@@ -164,50 +150,31 @@ def compute(params: dict) -> np.ndarray:
     cx2 = +0.5 * separation * np.cos(phase)
     cy2 = +0.16 * separation * np.sin(phase)
     cz2 = -bob * np.sin(phase)
-    rxy = 0.60 * slimness
-    rz = 0.70
-    
+
     s1 = _egg_shell(
         x, y, z,
         cx=cx1, cy=cy1, cz=cz1,
-        rx=rxy, ry=rxy, rz=rz,
-        tilt_y=+tilt,
-        twist_z=+twist,
-        eggness=eggness,
-        thick=thick,
-        gain=gain,
+        rx=0.58 * slimness, ry=0.58 * slimness, rz=0.72,
+        tilt_y=+tilt, twist_z=+twist,
+        eggness=eggness, thick=thick, gain=gain,
     )
     s2 = _egg_shell(
         x, y, z,
         cx=cx2, cy=cy2, cz=cz2,
-        rx=rxy, ry=rxy, rz=rz,
-        tilt_y=-tilt,
-        twist_z=-twist,
-        eggness=eggness,
-        thick=thick,
-        gain=gain,
+        rx=0.58 * slimness, ry=0.58 * slimness, rz=0.72,
+        tilt_y=-tilt, twist_z=-twist,
+        eggness=eggness, thick=thick, gain=gain,
     )
 
-    field = np.maximum(s1, s2).astype(np.float32)
-    return field
+    return np.maximum(s1, s2).astype(np.float32)
 
 
 def _egg_shell(
-    x: np.ndarray,
-    y: np.ndarray,
-    z: np.ndarray,
-    *,
-    cx: float,
-    cy: float,
-    cz: float,
-    rx: float,
-    ry: float,
-    rz: float,
-    tilt_y: float,
-    twist_z: float,
-    eggness: float,
-    thick: float,
-    gain: float,
+    x: np.ndarray, y: np.ndarray, z: np.ndarray, *,
+    cx: float, cy: float, cz: float,
+    rx: float, ry: float, rz: float,
+    tilt_y: float, twist_z: float,
+    eggness: float, thick: float, gain: float,
 ) -> np.ndarray:
     x0 = x - cx
     y0 = y - cy
@@ -216,30 +183,18 @@ def _egg_shell(
     x1, y1, z1 = _rot_z(x0, y0, z0, twist_z)
     x2, y2, z2 = _rot_y(x1, y1, z1, tilt_y)
 
-    # normalized vertical coordinate inside the egg
     zn = z2 / max(rz, 1e-6)
+    radial = 1.0 - 0.35 * eggness * zn
+    radial += 0.040 * np.exp(-((zn + 0.22) / 0.58) ** 2)
+    radial -= 0.018 * np.exp(-((zn - 0.72) / 0.34) ** 2)
+    radial = np.clip(radial, 0.82, 1.16)
 
-    # gentler egg profile:
-    # real egg = only slightly narrower at the top,
-    # slightly fuller at the lower half, not a pear
-    radial = 1.0 - 0.45 * eggness * zn
+    xe = x2 / radial
+    ye = y2 / radial
+    ze = z2
 
-    # soft lower fullness
-    radial += 0.045 * np.exp(-((zn + 0.22) / 0.55) ** 2)
-
-    # very gentle top narrowing
-    radial -= 0.025 * np.exp(-((zn - 0.72) / 0.30) ** 2)
-
-    radial = np.clip(radial, 0.78, 1.18)
-
-    xe = x2 / (rx * radial)
-    ye = y2 / (ry * radial)
-    ze = z2 / rz
-
-    e = xe ** 2 + ye ** 2 + ze ** 2 - 1.0
-
-    shell = np.exp(-gain * np.abs(e) / thick)
-    return shell
+    e = (xe / rx) ** 2 + (ye / ry) ** 2 + (ze / rz) ** 2 - 1.0
+    return np.exp(-gain * np.abs(e) / thick)
 
 
 def _rot_z(x: np.ndarray, y: np.ndarray, z: np.ndarray, a: float):

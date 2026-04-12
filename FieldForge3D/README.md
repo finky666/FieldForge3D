@@ -12,7 +12,7 @@ Small parameter changes produce rich geometric structures – ideal for experime
 <details>
   <summary><b>Show static UI preview</b></summary>
   <p align="center">
-    <img src="screenshot_gyroid1.png" alt="FieldForge3D UI preview" width="820"/>
+    <img src="screenshot_gyroid.png" alt="FieldForge3D UI preview" width="820"/>
   </p>
 </details>
 
