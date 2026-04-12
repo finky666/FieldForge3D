@@ -3,7 +3,7 @@
 **Interactive 3D implicit field visualizer (Python + PyVista + PyQt)**
 
 <p align="center">
-  <img src="fieldforge_plugins.gif" alt="FieldForge3D showcase" width="820"/>
+  <img src="fieldforge_plugins.gif" alt="FieldForge3D showcase" width="700"/>
 </p>
 
 FieldForge3D lets you explore mathematical 3D scalar fields and generate smooth implicit surfaces in real time.  
