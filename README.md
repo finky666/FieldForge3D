@@ -254,7 +254,7 @@ Then it became a playground for mathematical imagination.
 # 👤 Author
 
 **Tibor Čefan**  
-with heavy assistance from **ChatGPT (Majka / SuPyWomen)**
+with heavy assistance from **ChatGPT**
 
 ---
 
